@@ -10,4 +10,5 @@ type LogConf struct {
 	Compress            bool   `json:",optional"`
 	KeepDays            int    `json:",optional"`
 	StackCooldownMillis int    `json:",default=100"`
+	Size                int64  `json:",optional"`
 }

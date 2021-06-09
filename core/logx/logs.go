@@ -89,6 +89,7 @@ type (
 		gzipEnabled           bool
 		logStackCooldownMills int
 		keepDays              int
+		Size                  int64
 	}
 
 	// LogOption defines the method to customize the logging.
@@ -296,6 +297,13 @@ func WithKeepDays(days int) LogOption {
 	}
 }
 
+//WithSize customizes logging to size logs file size limit.
+func WithSize(size int64) LogOption {
+	return func(options *logOptions) {
+		options.Size = size
+	}
+}
+
 // WithGzip customizes logging to automatically gzip the log files.
 func WithGzip() LogOption {
 	return func(opts *logOptions) {
@@ -308,7 +316,7 @@ func createOutput(path string) (io.WriteCloser, error) {
 		return nil, ErrLogPathNotSet
 	}
 
-	return NewLogger(path, DefaultRotateRule(path, backupFileDelimiter, options.keepDays,
+	return NewLogger(path, DefaultRotateRule(path, backupFileDelimiter, options.keepDays, options.Size,
 		options.gzipEnabled), options.gzipEnabled)
 }
 
@@ -433,7 +441,9 @@ func setupWithFiles(c LogConf) error {
 	if c.KeepDays > 0 {
 		opts = append(opts, WithKeepDays(c.KeepDays))
 	}
-
+	if c.Size > 0 {
+		opts = append(opts, WithSize(c.Size))
+	}
 	accessFile := path.Join(c.Path, accessFilename)
 	errorFile := path.Join(c.Path, errorFilename)
 	severeFile := path.Join(c.Path, severeFilename)

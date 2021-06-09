@@ -60,23 +60,26 @@ type (
 		delimiter   string
 		days        int
 		gzip        bool
+		size        int64
 	}
 )
 
 // DefaultRotateRule is a default log rotating rule, currently DailyRotateRule.
-func DefaultRotateRule(filename, delimiter string, days int, gzip bool) RotateRule {
+func DefaultRotateRule(filename, delimiter string, days int, size int64, gzip bool) RotateRule {
 	return &DailyRotateRule{
 		rotatedTime: getNowDate(),
 		filename:    filename,
 		delimiter:   delimiter,
 		days:        days,
 		gzip:        gzip,
+		size:        size,
 	}
 }
 
 // BackupFileName returns the backup filename on rotating.
 func (r *DailyRotateRule) BackupFileName() string {
-	return fmt.Sprintf("%s%s%s", r.filename, r.delimiter, getNowDate())
+	//return fmt.Sprintf("%s%s%s", r.filename, r.delimiter, getNowDate())
+	return fmt.Sprintf("%s%s%s%s%s%s%s", r.filename, r.delimiter, getNowDate(), r.delimiter, getNowHour(), getNowMinute(), getNowSecond())
 }
 
 // MarkRotated marks the rotated time of r to be the current time.
@@ -105,7 +108,8 @@ func (r *DailyRotateRule) OutdatedFiles() []string {
 
 	var buf strings.Builder
 	boundary := time.Now().Add(-time.Hour * time.Duration(hoursPerDay*r.days)).Format(dateFormat)
-	fmt.Fprintf(&buf, "%s%s%s", r.filename, r.delimiter, boundary)
+	//fmt.Fprintf(&buf, "%s%s%s", r.filename, r.delimiter, boundary)
+	fmt.Fprintf(&buf, "%s%s%s%s%s", r.filename, r.delimiter, boundary, r.delimiter, "000000")
 	if r.gzip {
 		buf.WriteString(".gz")
 	}
@@ -123,7 +127,15 @@ func (r *DailyRotateRule) OutdatedFiles() []string {
 
 // ShallRotate checks if the file should be rotated.
 func (r *DailyRotateRule) ShallRotate() bool {
-	return len(r.rotatedTime) > 0 && getNowDate() != r.rotatedTime
+	return (len(r.rotatedTime) > 0 && getNowDate() != r.rotatedTime) || (r.size > 0 && genFileSize(r.filename) >= r.size*1024*1024)
+}
+
+func genFileSize(fName string) int64 {
+	fi, err := os.Stat(fName)
+	if err != nil || fi == nil {
+		return 0
+	}
+	return fi.Size()
 }
 
 // NewLogger returns a RotateLogger with given filename and rule, etc.
@@ -302,6 +314,30 @@ func compressLogFile(file string) {
 
 func getNowDate() string {
 	return time.Now().Format(dateFormat)
+}
+
+func getNowHour() (h string) {
+	hi, _, _ := time.Now().Clock()
+	if hi < 10 {
+		return fmt.Sprintf("0%d", hi)
+	}
+	return fmt.Sprintf("%d", hi)
+}
+
+func getNowMinute() (m string) {
+	_, mi, _ := time.Now().Clock()
+	if mi < 10 {
+		return fmt.Sprintf("0%d", mi)
+	}
+	return fmt.Sprintf("%d", mi)
+}
+
+func getNowSecond() (s string) {
+	_, _, si := time.Now().Clock()
+	if si < 10 {
+		return fmt.Sprintf("0%d", si)
+	}
+	return fmt.Sprintf("%d", si)
 }
 
 func gzipFile(file string) error {

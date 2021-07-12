@@ -3,6 +3,8 @@ package httpx
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/tal-tech/go-zero/core/logx"
@@ -18,19 +20,31 @@ func Error(w http.ResponseWriter, err error) {
 	lock.RLock()
 	handler := errorHandler
 	lock.RUnlock()
+	var p = regexp.MustCompile(`^\[([A-Z-]+[0-9]+)\]`)
+	rsp := struct {
+		ResultCode int
+		ErrorDesc string
+		ErrorCode string
+		ErrorInnerDesc string
+	} {
+		ResultCode: 0,
+		//ErrorDesc: strings.Replace(err.Error(), p.FindString(err.Error()), "", -1),
+		ErrorDesc: "system error",
+		ErrorCode: strings.Replace(strings.Replace(p.FindString(err.Error()), "[", "", -1), "]", "", -1),
+		ErrorInnerDesc: "",
+	}
 
 	if handler == nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteJson(w, http.StatusBadRequest, rsp)
 		return
 	}
 
 	code, body := errorHandler(err)
-	e, ok := body.(error)
-	if ok {
-		http.Error(w, e.Error(), code)
-	} else {
-		WriteJson(w, code, body)
-	}
+	e, _ := body.(error)
+
+	rsp.ErrorInnerDesc = e.Error()
+	logx.Info(e.Error())
+	WriteJson(w, code, rsp)
 }
 
 // Ok writes HTTP 200 OK into w.
